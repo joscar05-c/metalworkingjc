@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { uploadBlueprintFile } from "../../../services/cms.service";
 import type { QuoteRequestSource } from "../../../types/domain";
 import { useCreateQuoteMutation } from "../hooks/useCreateQuoteMutation";
 
@@ -20,10 +21,28 @@ export function QuoteRequestForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [projectDetails, setProjectDetails] = useState(initialProjectDetails);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | undefined>();
+  const [attachmentName, setAttachmentName] = useState<string | undefined>();
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(true);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
   const mutation = useCreateQuoteMutation(whatsappNumber);
+
+  const handleBlueprintChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsUploadingFile(true);
+    try {
+      const uploaded = await uploadBlueprintFile(file);
+      setAttachmentUrl(uploaded.url);
+      setAttachmentName(uploaded.name);
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,6 +57,8 @@ export function QuoteRequestForm({
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         projectDetails,
+        attachmentUrl,
+        attachmentName,
         source,
         sendViaWhatsapp,
       },
@@ -49,6 +70,8 @@ export function QuoteRequestForm({
           setEmail("");
           setPhone("");
           setProjectDetails("");
+          setAttachmentUrl(undefined);
+          setAttachmentName(undefined);
           if (onSuccess) {
             setTimeout(() => {
               onSuccess();
@@ -74,7 +97,7 @@ export function QuoteRequestForm({
           />
         </div>
         <div className="grupo-form">
-          <label htmlFor={`empresa-${source}`}>Empresa</label>
+          <label htmlFor={`empresa-${source}`}>Empresa / RUC</label>
           <input
             type="text"
             id={`empresa-${source}`}
@@ -120,6 +143,41 @@ export function QuoteRequestForm({
         />
       </div>
 
+      <div className="grupo-form">
+        <label>Plano Técnico o Foto de Pieza (PDF, DWG, DXF, Imagen)</label>
+        <div className="adjunto-plano-contenedor">
+          <label className="btn-secundario btn-subir-plano">
+            <span className="material-symbols-outlined">attach_file</span>
+            <span>
+              {isUploadingFile
+                ? "Subiendo archivo..."
+                : attachmentName
+                  ? `Adjunto: ${attachmentName}`
+                  : "Adjuntar Plano / Foto"}
+            </span>
+            <input
+              type="file"
+              accept=".pdf,.dwg,.dxf,.step,.stp,.iges,.igs,.zip,image/*"
+              onChange={handleBlueprintChange}
+              hidden
+            />
+          </label>
+          {attachmentName && (
+            <button
+              type="button"
+              className="btn-quitar-adjunto"
+              onClick={() => {
+                setAttachmentUrl(undefined);
+                setAttachmentName(undefined);
+              }}
+              title="Quitar archivo adjunto"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      </div>
+
       <label className="checkbox-whatsapp">
         <input
           type="checkbox"
@@ -149,7 +207,7 @@ export function QuoteRequestForm({
 
       <button
         type="submit"
-        disabled={mutation.isPending}
+        disabled={mutation.isPending || isUploadingFile}
         className="btn-primario ancho-completo"
       >
         {mutation.isPending ? "Procesando..." : "Enviar Solicitud"}
@@ -158,4 +216,3 @@ export function QuoteRequestForm({
     </form>
   );
 }
-

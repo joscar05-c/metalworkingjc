@@ -220,6 +220,7 @@ export default function AdminDashboardPage() {
               {activeTab === "quotes" && (
                 <AdminQuotesInbox
                   quotes={quotes}
+                  settings={settings}
                   onUpdateStatus={(id, status, adminNotes) =>
                     mutations.updateQuoteMutation.mutate({
                       id,

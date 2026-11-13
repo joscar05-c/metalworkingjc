@@ -5,9 +5,10 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_SITE_SETTINGS,
 } from "../../data/defaultContent";
-import type { MachiningService } from "../../types/domain";
+import type { GalleryItem, MachiningService } from "../../types/domain";
 import { ContactSection } from "./components/ContactSection";
 import { ExperienceSection } from "./components/ExperienceSection";
+import { FloatingWhatsappButton } from "./components/FloatingWhatsappButton";
 import { FooterSection } from "./components/FooterSection";
 import { GallerySection } from "./components/GallerySection";
 import { HeroSection } from "./components/HeroSection";
@@ -55,6 +56,20 @@ export function LandingPage() {
     setIsModalOpen(true);
   };
 
+  const handleQuoteGalleryItem = (item: GalleryItem) => {
+    setSelectedService({
+      id: item.id,
+      title: `Pieza similar a: ${item.title}`,
+      shortDescription: item.badgeText ?? item.title,
+      technicalDetails: `Referencia visual seleccionada del portafolio: "${item.title}". Indique dimensiones, material y cantidad requerida.`,
+      iconMain: "precision_manufacturing",
+      iconBackground: "settings",
+      displayOrder: item.displayOrder,
+      isActive: true,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedService(undefined);
@@ -89,11 +104,21 @@ export function LandingPage() {
             onSelectService={handleSelectService}
           />
         }
-        gallery={<GallerySection items={gallery} />}
+        gallery={
+          <GallerySection
+            items={gallery}
+            onQuoteGalleryItem={handleQuoteGalleryItem}
+          />
+        }
         contact={<ContactSection settings={settings} />}
         footer={
           <FooterSection settings={settings} isDarkMode={isDarkMode} />
         }
+      />
+
+      <FloatingWhatsappButton
+        whatsappNumber={settings.whatsappNumber}
+        brandName={`${settings.brandName} ${settings.brandSubname}`}
       />
 
       {isModalOpen && (
@@ -106,4 +131,3 @@ export function LandingPage() {
     </>
   );
 }
-

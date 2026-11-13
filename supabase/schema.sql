@@ -284,3 +284,10 @@ where not exists (select 1 from public.gallery_items);
 update public.site_settings
 set hero_image_url = '/images/HERO2.jpg'
 where id = 1 and (hero_image_url is null or hero_image_url like '/src/assets/%');
+
+
+-- Permitir subida pública de planos de clientes únicamente en la carpeta blueprints/ del bucket mwjc-media
+drop policy if exists "mwjc_media_public_blueprints_insert" on storage.objects;
+create policy "mwjc_media_public_blueprints_insert" on storage.objects
+  for insert to anon, authenticated
+  with check (bucket_id = 'mwjc-media' and (storage.foldername(name))[1] = 'blueprints');

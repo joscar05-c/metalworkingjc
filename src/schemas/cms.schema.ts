@@ -78,6 +78,8 @@ export const dbQuoteRequestRowSchema = z.object({
   email: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   project_details: z.string(),
+  attachment_url: z.string().nullable().optional(),
+  attachment_name: z.string().nullable().optional(),
   source: quoteSourceSchema.catch("contacto"),
   status: quoteStatusSchema.catch("pendiente"),
   admin_notes: z.string().nullable().optional(),
@@ -105,6 +107,25 @@ export function normalizePublicAssetUrl(
     return clean.replace("/src/assets/", "/images/");
   }
   return clean;
+}
+
+const EMBEDDED_ATTACHMENT_REGEX =
+  /\n*\[Plano Adjunto \(([^)]+)\)\]: (\S+)\s*$/;
+
+export function extractAttachmentFromDetails(rawDetails: string): {
+  cleanDetails: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
+} {
+  const match = EMBEDDED_ATTACHMENT_REGEX.exec(rawDetails);
+  if (!match) {
+    return { cleanDetails: rawDetails };
+  }
+  return {
+    cleanDetails: rawDetails.replace(EMBEDDED_ATTACHMENT_REGEX, "").trim(),
+    attachmentName: match[1],
+    attachmentUrl: match[2],
+  };
 }
 
 export function mapSiteSettingsRow(
@@ -181,13 +202,19 @@ export function mapQuoteRequestRow(
 ): QuoteRequest {
   const source: QuoteRequestSource = row.source;
   const status: QuoteRequestStatus = row.status;
+  const extracted = extractAttachmentFromDetails(row.project_details);
+
   return {
     id: row.id,
     clientName: row.client_name,
     companyName: nonEmptyOrUndefined(row.company_name),
     email: nonEmptyOrUndefined(row.email),
     phone: nonEmptyOrUndefined(row.phone),
-    projectDetails: row.project_details,
+    projectDetails: extracted.cleanDetails,
+    attachmentUrl:
+      nonEmptyOrUndefined(row.attachment_url) ?? extracted.attachmentUrl,
+    attachmentName:
+      nonEmptyOrUndefined(row.attachment_name) ?? extracted.attachmentName,
     source,
     status,
     adminNotes: nonEmptyOrUndefined(row.admin_notes),

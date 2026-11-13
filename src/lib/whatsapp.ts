@@ -27,7 +27,13 @@ export function buildWhatsappQuoteUrl(
   lines.push("*Requerimiento Técnico:*");
   lines.push(quote.projectDetails);
 
+  if (quote.attachmentUrl) {
+    lines.push("");
+    lines.push(
+      `📎 *Plano / Archivo Adjunto (${quote.attachmentName ?? "Plano"}):* ${quote.attachmentUrl}`,
+    );
+  }
+
   const encodedMessage = encodeURIComponent(lines.join("\n"));
   return `https://wa.me/${targetPhone}?text=${encodedMessage}`;
 }
-

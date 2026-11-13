@@ -6,6 +6,7 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_SITE_SETTINGS,
 } from "../data/defaultContent";
+import { compressImageToWebp } from "../lib/imageOptimizer";
 import { supabaseClient } from "../lib/supabaseClient";
 import {
   dbExperienceStatRowSchema,
@@ -118,6 +119,8 @@ const localQuoteSchema = z.object({
   email: z.string().optional(),
   phone: z.string().optional(),
   projectDetails: z.string(),
+  attachmentUrl: z.string().optional(),
+  attachmentName: z.string().optional(),
   source: z.enum(["contacto", "modal", "servicio"]),
   status: z.enum(["pendiente", "en_revision", "cotizado", "archivado"]),
   adminNotes: z.string().optional(),
@@ -594,6 +597,8 @@ export async function createQuoteRequest(
     email: input.email?.trim() || undefined,
     phone: input.phone?.trim() || undefined,
     projectDetails: input.projectDetails.trim(),
+    attachmentUrl: input.attachmentUrl,
+    attachmentName: input.attachmentName,
     source: input.source,
     status: "pendiente",
     createdAt: new Date().toISOString(),
@@ -605,12 +610,17 @@ export async function createQuoteRequest(
     return createdQuote;
   }
 
+  const detailsWithEmbeddedAttachment =
+    createdQuote.attachmentUrl
+      ? `${createdQuote.projectDetails}\n\n[Plano Adjunto (${createdQuote.attachmentName ?? "Plano"})]: ${createdQuote.attachmentUrl}`
+      : createdQuote.projectDetails;
+
   const { error } = await supabaseClient.from("quote_requests").insert({
     client_name: createdQuote.clientName,
     company_name: createdQuote.companyName ?? null,
     email: createdQuote.email ?? null,
     phone: createdQuote.phone ?? null,
-    project_details: createdQuote.projectDetails,
+    project_details: detailsWithEmbeddedAttachment,
     source: createdQuote.source,
     status: "pendiente",
   });
@@ -683,12 +693,14 @@ export async function deleteQuoteRequest(id: number): Promise<void> {
 }
 
 export async function uploadMediaFile(file: File): Promise<string> {
+  const optimizedFile = await compressImageToWebp(file);
+
   if (supabaseClient) {
-    const safeExt = file.name.split(".").pop() ?? "jpg";
+    const safeExt = optimizedFile.name.split(".").pop() ?? "webp";
     const filePath = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
     const { error } = await supabaseClient.storage
       .from("mwjc-media")
-      .upload(filePath, file, { upsert: true });
+      .upload(filePath, optimizedFile, { upsert: true });
 
     if (!error) {
       const { data } = supabaseClient.storage
@@ -709,6 +721,47 @@ export async function uploadMediaFile(file: File): Promise<string> {
     };
     reader.onerror = () =>
       reject(new Error("Error al leer el archivo de imagen."));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(optimizedFile);
+  });
+}
+
+export async function uploadBlueprintFile(file: File): Promise<{
+  url: string;
+  name: string;
+}> {
+  const processedFile = file.type.startsWith("image/")
+    ? await compressImageToWebp(file)
+    : file;
+
+  if (supabaseClient) {
+    const cleanName = processedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `blueprints/${Date.now()}-${cleanName}`;
+    const { error } = await supabaseClient.storage
+      .from("mwjc-media")
+      .upload(filePath, processedFile, { upsert: false });
+
+    if (!error) {
+      const { data } = supabaseClient.storage
+        .from("mwjc-media")
+        .getPublicUrl(filePath);
+      return {
+        url: data.publicUrl,
+        name: file.name,
+      };
+    }
+  }
+
+  return new Promise<{ url: string; name: string }>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve({ url: reader.result, name: file.name });
+      } else {
+        reject(new Error("No se pudo adjuntar el archivo técnico."));
+      }
+    };
+    reader.onerror = () =>
+      reject(new Error("Error al leer el archivo adjunto."));
+    reader.readAsDataURL(processedFile);
   });
 }

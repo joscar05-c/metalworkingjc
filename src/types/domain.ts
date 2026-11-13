@@ -67,6 +67,8 @@ export interface QuoteRequest {
   email?: string;
   phone?: string;
   projectDetails: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
   source: QuoteRequestSource;
   status: QuoteRequestStatus;
   adminNotes?: string;
@@ -79,6 +81,8 @@ export interface CreateQuoteInput {
   email?: string;
   phone?: string;
   projectDetails: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
   source: QuoteRequestSource;
   sendViaWhatsapp: boolean;
 }
@@ -90,4 +94,3 @@ export interface LandingBundle {
   gallery: GalleryItem[];
   sourceMode: "supabase" | "local";
 }
-
