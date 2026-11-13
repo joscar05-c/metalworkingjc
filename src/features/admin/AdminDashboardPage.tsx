@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
   const gallery = bundle?.gallery ?? DEFAULT_GALLERY_ITEMS;
   const pendingCount = quotes.filter((q) => q.status === "pendiente").length;
 
-  const settingsVersionKey = `${settings.id}-${settings.phoneDisplay}-${settings.heroTitleHighlight}-${settings.heroImageUrl ?? ""}`;
+  const settingsVersionKey = `${settings.id}-${settings.phoneDisplay}-${settings.heroTitleHighlight}-${settings.heroImageUrl ?? ""}-${settings.addressLine1}-${settings.mapQuery ?? ""}`;
 
   return (
     <div className="admin-shell">

@@ -1541,3 +1541,136 @@ body {
     width: 100%;
   }
 }
+
+
+/* ==========================================================================
+   MAPA INTERACTIVO GOOGLE MAPS (LANDING Y VISTA PREVIA EN /admin)
+   ========================================================================== */
+
+.mapa-taller-contenedor {
+  margin-top: 3.5rem;
+  background-color: var(--bg-superficie);
+  border: 1px solid var(--borde-sutil);
+  border-top: 3px solid var(--color-primario);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.mapa-taller-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid var(--borde-sutil);
+}
+
+.mapa-taller-titulo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mapa-taller-pin {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(242, 127, 13, 0.12);
+  border: 1px solid rgba(242, 127, 13, 0.35);
+  color: var(--color-primario);
+}
+
+.mapa-taller-etiqueta {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--color-primario);
+}
+
+.mapa-taller-direccion {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--texto-principal);
+}
+
+.mapa-taller-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mapa-tipo-switch {
+  display: inline-flex;
+  border: 1px solid var(--borde-sutil);
+  background-color: var(--bg-oscuro);
+}
+
+.btn-mapa-tipo {
+  background: transparent;
+  border: none;
+  color: var(--texto-secundario);
+  font-family: var(--fuente-principal);
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--texto-principal);
+  }
+
+  &.activo {
+    background-color: var(--color-primario);
+    color: var(--bg-oscuro);
+  }
+}
+
+.mapa-taller-frame-wrapper {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  background-color: #120d08;
+
+  @media (min-width: 768px) {
+    height: 420px;
+  }
+}
+
+.mapa-taller-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.admin-mapa-preview {
+  background-color: var(--bg-oscuro);
+  border: 1px solid var(--borde-sutil);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-mapa-preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-mapa-preview-iframe {
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--borde-sutil);
+  display: block;
+}

@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { uploadMediaFile } from "../../../services/cms.service";
 import type { SiteSettings } from "../../../types/domain";
+import { AdminMapPreview } from "./AdminMapPreview";
 
 export interface AdminSettingsEditorProps {
   initialSettings: SiteSettings;
@@ -266,6 +267,30 @@ export function AdminSettingsEditor({
           />
         </div>
       </div>
+
+      <div className="grupo-form">
+        <label>
+          Ubicación Exacta en Google Maps (Opcional: Coordenadas GPS o Consulta)
+        </label>
+        <input
+          type="text"
+          value={formState.mapQuery ?? ""}
+          onChange={(e) =>
+            updateField("mapQuery", e.target.value || undefined)
+          }
+          placeholder="Ej. METAL WORKING JC, 22825, Rioja 22825, Perú o -6.04894, -77.17177"
+        />
+        <span className="admin-meta-texto">
+          Tip: Usa el nombre exacto de tu ficha en Google Maps o copia las
+          coordenadas haciendo clic derecho sobre tu taller.
+        </span>
+      </div>
+
+      <AdminMapPreview
+        addressLine1={formState.addressLine1}
+        addressLine2={formState.addressLine2}
+        customMapQuery={formState.mapQuery}
+      />
 
       <div className="fila-form">
         <div className="grupo-form">

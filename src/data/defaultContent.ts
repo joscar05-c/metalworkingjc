@@ -25,6 +25,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     "Nuestro equipo técnico revisará sus planos y requerimientos para enviarle una propuesta detallada en menos de 24 horas.",
   addressLine1: "Jr. Los Girasoles 220",
   addressLine2: "Rioja, San Martín, Perú",
+  mapQuery: "METAL WORKING JC, 22825, Rioja 22825, Perú",
   phoneDisplay: "+51 927885314",
   whatsappNumber: "51927885314",
   emailTechnical: "pizangojosec@gmail.com",

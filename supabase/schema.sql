@@ -21,6 +21,7 @@ create table if not exists public.site_settings (
   contact_description text not null default 'Nuestro equipo técnico revisará sus planos y requerimientos para enviarle una propuesta detallada en menos de 24 horas.',
   address_line1 text not null default 'Jr. Los Girasoles 220',
   address_line2 text not null default 'Rioja, San Martín, Perú',
+  map_query text default 'METAL WORKING JC, 22825, Rioja 22825, Perú',
   phone_display text not null default '+51 927885314',
   whatsapp_number text not null default '51927885314',
   email_technical text not null default 'pizangojosec@gmail.com',
@@ -291,3 +292,12 @@ drop policy if exists "mwjc_media_public_blueprints_insert" on storage.objects;
 create policy "mwjc_media_public_blueprints_insert" on storage.objects
   for insert to anon, authenticated
   with check (bucket_id = 'mwjc-media' and (storage.foldername(name))[1] = 'blueprints');
+
+
+-- Migración idempotente para guardar coordenadas o consulta exacta de Google Maps en site_settings
+alter table public.site_settings
+  add column if not exists map_query text;
+
+update public.site_settings
+set map_query = 'METAL WORKING JC, 22825, Rioja 22825, Perú'
+where id = 1 and (map_query is null or btrim(map_query) = '');

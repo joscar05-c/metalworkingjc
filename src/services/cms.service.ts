@@ -77,6 +77,7 @@ const localSettingsSchema = z.object({
   contactDescription: z.string(),
   addressLine1: z.string(),
   addressLine2: z.string(),
+  mapQuery: z.string().optional(),
   phoneDisplay: z.string(),
   whatsappNumber: z.string(),
   emailTechnical: z.string(),
@@ -127,18 +128,34 @@ const localQuoteSchema = z.object({
   createdAt: z.string(),
 });
 
+function withDefaultMapQueryFallback(settings: SiteSettings): SiteSettings {
+  if (settings.mapQuery) {
+    return settings;
+  }
+  const usesDefaultStreet =
+    settings.addressLine1.trim().toLowerCase() ===
+    DEFAULT_SITE_SETTINGS.addressLine1.trim().toLowerCase();
+  if (!usesDefaultStreet) {
+    return settings;
+  }
+  return {
+    ...settings,
+    mapQuery: DEFAULT_SITE_SETTINGS.mapQuery,
+  };
+}
+
 export function getLocalSettings(): SiteSettings {
   const settings = readLocalJson(
     STORAGE_KEYS.settings,
     localSettingsSchema,
     DEFAULT_SITE_SETTINGS,
   );
-  return {
+  return withDefaultMapQueryFallback({
     ...settings,
     heroImageUrl:
       normalizePublicAssetUrl(settings.heroImageUrl) ??
       DEFAULT_SITE_SETTINGS.heroImageUrl,
-  };
+  });
 }
 
 export function getLocalStats(): ExperienceStat[] {
@@ -253,12 +270,17 @@ export async function fetchLandingBundle(
   const mappedSettings = parsedSettings.success
     ? mapSiteSettingsRow(parsedSettings.data)
     : undefined;
+  const hasMapQueryColumn =
+    parsedSettings.success && parsedSettings.data.map_query !== undefined;
   const settings: SiteSettings = mappedSettings
-    ? {
+    ? withDefaultMapQueryFallback({
         ...mappedSettings,
         heroImageUrl:
           mappedSettings.heroImageUrl ?? DEFAULT_SITE_SETTINGS.heroImageUrl,
-      }
+        mapQuery: hasMapQueryColumn
+          ? mappedSettings.mapQuery
+          : getLocalSettings().mapQuery,
+      })
     : getLocalSettings();
 
   const parsedStats = z.array(dbExperienceStatRowSchema).safeParse(statsRes.data);
@@ -306,9 +328,11 @@ export async function saveSiteSettings(
   nextSettings: SiteSettings,
 ): Promise<SiteSettings> {
   const normalizedHeroUrl = normalizePublicAssetUrl(nextSettings.heroImageUrl);
+  const normalizedMapQuery = nextSettings.mapQuery?.trim() || undefined;
   const normalizedSettings: SiteSettings = {
     ...nextSettings,
     heroImageUrl: normalizedHeroUrl,
+    mapQuery: normalizedMapQuery,
   };
 
   writeLocalJson(STORAGE_KEYS.settings, normalizedSettings);
@@ -317,46 +341,70 @@ export async function saveSiteSettings(
     return normalizedSettings;
   }
 
-  const { data, error } = await supabaseClient
+  const basePayload = {
+    id: 1,
+    brand_name: normalizedSettings.brandName,
+    brand_subname: normalizedSettings.brandSubname,
+    hero_badge: normalizedSettings.heroBadge,
+    hero_title_start: normalizedSettings.heroTitleStart,
+    hero_title_highlight: normalizedSettings.heroTitleHighlight,
+    hero_title_end: normalizedSettings.heroTitleEnd,
+    hero_description: normalizedSettings.heroDescription,
+    hero_image_url: normalizedHeroUrl ?? "/images/HERO2.jpg",
+    tolerance_value: normalizedSettings.toleranceValue,
+    tolerance_unit: normalizedSettings.toleranceUnit,
+    tolerance_label: normalizedSettings.toleranceLabel,
+    contact_heading: normalizedSettings.contactHeading,
+    contact_description: normalizedSettings.contactDescription,
+    address_line1: normalizedSettings.addressLine1,
+    address_line2: normalizedSettings.addressLine2,
+    phone_display: normalizedSettings.phoneDisplay,
+    whatsapp_number: normalizedSettings.whatsappNumber,
+    email_technical: normalizedSettings.emailTechnical,
+    copyright_text: normalizedSettings.copyrightText,
+    updated_at: new Date().toISOString(),
+  };
+
+  let response = await supabaseClient
     .from("site_settings")
     .upsert({
-      id: 1,
-      brand_name: normalizedSettings.brandName,
-      brand_subname: normalizedSettings.brandSubname,
-      hero_badge: normalizedSettings.heroBadge,
-      hero_title_start: normalizedSettings.heroTitleStart,
-      hero_title_highlight: normalizedSettings.heroTitleHighlight,
-      hero_title_end: normalizedSettings.heroTitleEnd,
-      hero_description: normalizedSettings.heroDescription,
-      hero_image_url: normalizedHeroUrl ?? "/images/HERO2.jpg",
-      tolerance_value: normalizedSettings.toleranceValue,
-      tolerance_unit: normalizedSettings.toleranceUnit,
-      tolerance_label: normalizedSettings.toleranceLabel,
-      contact_heading: normalizedSettings.contactHeading,
-      contact_description: normalizedSettings.contactDescription,
-      address_line1: normalizedSettings.addressLine1,
-      address_line2: normalizedSettings.addressLine2,
-      phone_display: normalizedSettings.phoneDisplay,
-      whatsapp_number: normalizedSettings.whatsappNumber,
-      email_technical: normalizedSettings.emailTechnical,
-      copyright_text: normalizedSettings.copyrightText,
-      updated_at: new Date().toISOString(),
+      ...basePayload,
+      map_query: normalizedMapQuery ?? null,
     })
     .select("*")
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
+  if (response.error && response.error.message.includes("map_query")) {
+    response = await supabaseClient
+      .from("site_settings")
+      .upsert(basePayload)
+      .select("*")
+      .maybeSingle();
   }
 
-  if (!data) {
+  if (response.error) {
+    throw new Error(response.error.message);
+  }
+
+  if (!response.data) {
     throw new Error(
       "No se pudo guardar en Supabase. Verifica que hayas iniciado sesión con tu usuario de Supabase Auth.",
     );
   }
 
-  const parsed = dbSiteSettingsRowSchema.safeParse(data);
-  return parsed.success ? mapSiteSettingsRow(parsed.data) : normalizedSettings;
+  const parsed = dbSiteSettingsRowSchema.safeParse(response.data);
+  if (!parsed.success) {
+    return normalizedSettings;
+  }
+
+  const mapped = mapSiteSettingsRow(parsed.data);
+  return {
+    ...mapped,
+    mapQuery:
+      parsed.data.map_query !== undefined
+        ? mapped.mapQuery
+        : normalizedMapQuery,
+  };
 }
 
 export async function upsertExperienceStat(

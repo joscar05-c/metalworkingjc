@@ -25,6 +25,7 @@ export interface SiteSettings {
   contactDescription: string;
   addressLine1: string;
   addressLine2: string;
+  mapQuery?: string;
   phoneDisplay: string;
   whatsappNumber: string;
   emailTechnical: string;
