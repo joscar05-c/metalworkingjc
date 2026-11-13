@@ -1,11 +1,7 @@
-const DEFAULT_GOOGLE_MAPS_API_KEY =
-  "AIzaSyDM8sQ2Fc0ftlGpJnVkdXUW7IWttzOdM1I";
-
 export type GoogleMapType = "roadmap" | "satellite";
 
 export const googleMapsApiKey: string =
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ||
-  DEFAULT_GOOGLE_MAPS_API_KEY;
+  import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ?? "";
 
 export function resolveMapQuery(
   addressLine1: string,
