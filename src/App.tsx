@@ -5,9 +5,14 @@ import { LandingPage } from "./features/landing/LandingPage";
 import { queryClient } from "./lib/queryClient";
 import "./index.css";
 
-// Regla `bundle-defer-third-party`: diferir el código del Panel Admin fuera del bundle principal de la Landing
+// Regla `bundle-defer-third-party`: diferir el código del Panel Admin y Vercel Analytics fuera del bundle inicial
 const AdminDashboardPage = lazy(
   () => import("./features/admin/AdminDashboardPage"),
+);
+const VercelAnalytics = lazy(() =>
+  import("@vercel/analytics/react").then((module) => ({
+    default: module.Analytics,
+  })),
 );
 
 export function App() {
@@ -33,6 +38,11 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      <Suspense fallback={undefined}>
+        <VercelAnalytics
+          mode={import.meta.env.DEV ? "development" : "production"}
+        />
+      </Suspense>
     </QueryClientProvider>
   );
 }
