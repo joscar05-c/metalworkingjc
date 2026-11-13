@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "react-best-practices": {
+      "source": "mastra-ai/mastra",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/react-best-practices/SKILL.md",
+      "computedHash": "81a16ec914b9291c136bcad9e8e7b7e93dfa157c532ed28ef7558ee09020d078"
+    }
+  }
+}
