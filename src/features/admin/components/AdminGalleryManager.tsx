@@ -1,19 +1,21 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { uploadMediaFile } from "../../../services/cms.service";
 import type { GalleryItem, GridSpanVariant } from "../../../types/domain";
 
 export interface AdminGalleryManagerProps {
   items: GalleryItem[];
   isSaving: boolean;
-  onSaveItem: (item: Omit<GalleryItem, "id"> & { id?: number }) => void;
-  onDeleteItem: (id: number) => void;
+  onSaveItem: (
+    item: Omit<GalleryItem, "id"> & { id?: number },
+  ) => Promise<unknown>;
+  onDeleteItem: (id: number) => Promise<unknown>;
 }
 
 interface GalleryEditorFormProps {
   initialItem?: GalleryItem;
   defaultOrder: number;
   isSaving: boolean;
-  onSubmit: (item: Omit<GalleryItem, "id"> & { id?: number }) => void;
+  onSubmit: (item: Omit<GalleryItem, "id"> & { id?: number }) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -63,11 +65,11 @@ function GalleryEditorForm({
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!title.trim() || !imageUrl.trim()) return;
 
-    onSubmit({
+    await onSubmit({
       id: initialItem?.id,
       title: title.trim(),
       badgeText: badgeText.trim() || undefined,
@@ -87,12 +89,30 @@ function GalleryEditorForm({
   };
 
   return (
-    <form className="admin-card formulario" onSubmit={handleSubmit}>
-      <h4>
-        {initialItem
-          ? `Editando Pieza de Galería: ${initialItem.title}`
-          : "Agregar Pieza / Trabajo a la Galería"}
-      </h4>
+    <form
+      className={
+        initialItem
+          ? "admin-card admin-card-editando formulario"
+          : "admin-card formulario"
+      }
+      onSubmit={handleSubmit}
+    >
+      <div className="admin-card-header" style={{ marginBottom: "0.5rem" }}>
+        <h4>
+          {initialItem
+            ? `✏️ Editando Pieza de Galería: ${initialItem.title}`
+            : "Agregar Pieza / Trabajo a la Galería"}
+        </h4>
+        {initialItem && (
+          <button
+            type="button"
+            className="btn-secundario btn-sm"
+            onClick={onCancel}
+          >
+            Cancelar Edición
+          </button>
+        )}
+      </div>
 
       <div className="fila-form">
         <div className="grupo-form">
@@ -124,7 +144,7 @@ function GalleryEditorForm({
               type="text"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="URL de la foto o usa el botón Subir"
+              placeholder="/images/galeria1.jpg o sube una foto"
               required
             />
             <label className="btn-secundario btn-subir-archivo">
@@ -183,7 +203,11 @@ function GalleryEditorForm({
           )}
           <button type="submit" className="btn-primario" disabled={isSaving}>
             <span className="material-symbols-outlined">save</span>
-            {initialItem ? "Actualizar Pieza" : "Publicar en Galería"}
+            {isSaving
+              ? "Guardando..."
+              : initialItem
+                ? "Guardar Cambios de Pieza"
+                : "Publicar en Galería"}
           </button>
         </div>
       </div>
@@ -198,21 +222,59 @@ export function AdminGalleryManager({
   onDeleteItem,
 }: AdminGalleryManagerProps) {
   const [editingItem, setEditingItem] = useState<GalleryItem | undefined>();
+  const [statusMessage, setStatusMessage] = useState<string | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const topAnchorRef = useRef<HTMLDivElement>(null);
 
   const formKey = editingItem
     ? `edit-gallery-${editingItem.id}`
     : "new-gallery";
 
+  const handleSelectEdit = (item: GalleryItem) => {
+    setStatusMessage(undefined);
+    setErrorMessage(undefined);
+    setEditingItem(item);
+    topAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <div className="admin-seccion-stack">
+    <div className="admin-seccion-stack" ref={topAnchorRef}>
+      {statusMessage && (
+        <div className="alerta-exito-form" role="status">
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>{statusMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="alerta-error-form" role="alert">
+          {errorMessage}
+        </div>
+      )}
+
       <GalleryEditorForm
         key={formKey}
         initialItem={editingItem}
         defaultOrder={items.length + 1}
         isSaving={isSaving}
-        onSubmit={(payload) => {
-          onSaveItem(payload);
-          setEditingItem(undefined);
+        onSubmit={async (payload) => {
+          setStatusMessage(undefined);
+          setErrorMessage(undefined);
+          try {
+            await onSaveItem(payload);
+            setEditingItem(undefined);
+            setStatusMessage(
+              payload.id
+                ? "Pieza de galería actualizada correctamente."
+                : "Nueva pieza publicada en la galería.",
+            );
+          } catch (err) {
+            setErrorMessage(
+              err instanceof Error
+                ? err.message
+                : "No se pudo guardar el elemento de galería.",
+            );
+          }
         }}
         onCancel={() => setEditingItem(undefined)}
       />
@@ -234,11 +296,14 @@ export function AdminGalleryManager({
                   Bloque: {item.gridSpan} • Orden: {item.displayOrder} •{" "}
                   {item.isActive ? "Visible" : "Oculto"}
                 </span>
-                <div className="admin-botones-grupo" style={{ marginTop: "0.75rem" }}>
+                <div
+                  className="admin-botones-grupo"
+                  style={{ marginTop: "0.75rem" }}
+                >
                   <button
                     type="button"
-                    className="btn-secundario btn-sm"
-                    onClick={() => setEditingItem(item)}
+                    className="btn-primario btn-sm"
+                    onClick={() => handleSelectEdit(item)}
                   >
                     <span className="material-symbols-outlined">edit</span>
                     Editar
@@ -246,7 +311,15 @@ export function AdminGalleryManager({
                   <button
                     type="button"
                     className="btn-secundario btn-sm btn-peligro"
-                    onClick={() => onDeleteItem(item.id)}
+                    onClick={() => {
+                      void onDeleteItem(item.id).catch((err: unknown) => {
+                        setErrorMessage(
+                          err instanceof Error
+                            ? err.message
+                            : "No se pudo eliminar la pieza.",
+                        );
+                      });
+                    }}
                   >
                     <span className="material-symbols-outlined">delete</span>
                   </button>
@@ -259,4 +332,3 @@ export function AdminGalleryManager({
     </div>
   );
 }
-

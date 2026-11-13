@@ -84,10 +84,27 @@ export const dbQuoteRequestRowSchema = z.object({
   created_at: z.string(),
 });
 
-function nonEmptyOrUndefined(value: string | null | undefined): string | undefined {
+function nonEmptyOrUndefined(
+  value: string | null | undefined,
+): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Convierte rutas locales de desarrollo de Vite (/src/assets/...) a rutas públicas estáticas (/images/...)
+ * para que funcionen tanto en desarrollo local como en producción en Vercel.
+ */
+export function normalizePublicAssetUrl(
+  value: string | null | undefined,
+): string | undefined {
+  const clean = nonEmptyOrUndefined(value);
+  if (!clean) return undefined;
+  if (clean.startsWith("/src/assets/")) {
+    return clean.replace("/src/assets/", "/images/");
+  }
+  return clean;
 }
 
 export function mapSiteSettingsRow(
@@ -102,7 +119,7 @@ export function mapSiteSettingsRow(
     heroTitleHighlight: row.hero_title_highlight,
     heroTitleEnd: row.hero_title_end,
     heroDescription: row.hero_description,
-    heroImageUrl: nonEmptyOrUndefined(row.hero_image_url),
+    heroImageUrl: normalizePublicAssetUrl(row.hero_image_url),
     toleranceValue: row.tolerance_value,
     toleranceUnit: row.tolerance_unit,
     toleranceLabel: row.tolerance_label,
@@ -152,7 +169,7 @@ export function mapGalleryItemRow(
     id: row.id,
     title: row.title,
     badgeText: nonEmptyOrUndefined(row.badge_text),
-    imageUrl: row.image_url,
+    imageUrl: normalizePublicAssetUrl(row.image_url) ?? "/images/galeria1.jpg",
     gridSpan: span,
     displayOrder: row.display_order,
     isActive: row.is_active,
@@ -177,4 +194,3 @@ export function mapQuoteRequestRow(
     createdAt: row.created_at,
   };
 }
-

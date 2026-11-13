@@ -1,4 +1,3 @@
-import heroFallbackImg from "../../../assets/HERO2.jpg";
 import type { SiteSettings } from "../../../types/domain";
 
 export interface HeroSectionProps {
@@ -7,7 +6,7 @@ export interface HeroSectionProps {
 }
 
 export function HeroSection({ settings, onOpenQuoteModal }: HeroSectionProps) {
-  const backgroundUrl = settings.heroImageUrl ?? heroFallbackImg;
+  const backgroundUrl = settings.heroImageUrl ?? "/images/HERO2.jpg";
 
   return (
     <header className="hero">
@@ -16,6 +15,11 @@ export function HeroSection({ settings, onOpenQuoteModal }: HeroSectionProps) {
           src={backgroundUrl}
           alt="Torno mecánico de precisión funcionando"
           fetchPriority="high"
+          onError={(e) => {
+            if (!e.currentTarget.src.endsWith("/images/HERO2.jpg")) {
+              e.currentTarget.src = "/images/HERO2.jpg";
+            }
+          }}
         />
       </div>
 
@@ -65,4 +69,3 @@ export function HeroSection({ settings, onOpenQuoteModal }: HeroSectionProps) {
     </header>
   );
 }
-

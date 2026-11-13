@@ -1,18 +1,20 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { ExperienceStat } from "../../../types/domain";
 
 export interface AdminStatsManagerProps {
   stats: ExperienceStat[];
   isSaving: boolean;
-  onSaveStat: (stat: Omit<ExperienceStat, "id"> & { id?: number }) => void;
-  onDeleteStat: (id: number) => void;
+  onSaveStat: (
+    stat: Omit<ExperienceStat, "id"> & { id?: number },
+  ) => Promise<unknown>;
+  onDeleteStat: (id: number) => Promise<unknown>;
 }
 
 interface StatFormProps {
   initialStat?: ExperienceStat;
   defaultOrder: number;
   isSaving: boolean;
-  onSubmit: (stat: Omit<ExperienceStat, "id"> & { id?: number }) => void;
+  onSubmit: (stat: Omit<ExperienceStat, "id"> & { id?: number }) => Promise<void>;
   onCancelEdit: () => void;
 }
 
@@ -30,10 +32,10 @@ function StatEditorForm({
   );
   const [isActive, setIsActive] = useState(initialStat?.isActive ?? true);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!statValue.trim() || !statLabel.trim()) return;
-    onSubmit({
+    await onSubmit({
       id: initialStat?.id,
       statValue: statValue.trim(),
       statLabel: statLabel.trim(),
@@ -48,12 +50,31 @@ function StatEditorForm({
   };
 
   return (
-    <form className="admin-card formulario" onSubmit={handleSubmit}>
-      <h4>
-        {initialStat
-          ? `Editando Métrica #${initialStat.id}`
-          : "Nueva Métrica de Experiencia"}
-      </h4>
+    <form
+      className={
+        initialStat
+          ? "admin-card admin-card-editando formulario"
+          : "admin-card formulario"
+      }
+      onSubmit={handleSubmit}
+    >
+      <div className="admin-card-header" style={{ marginBottom: "0.5rem" }}>
+        <h4>
+          {initialStat
+            ? `✏️ Editando Métrica: ${initialStat.statValue} ${initialStat.statLabel}`
+            : "Nueva Métrica de Experiencia"}
+        </h4>
+        {initialStat && (
+          <button
+            type="button"
+            className="btn-secundario btn-sm"
+            onClick={onCancelEdit}
+          >
+            Cancelar Edición
+          </button>
+        )}
+      </div>
+
       <div className="fila-form fila-tres-columnas">
         <div className="grupo-form">
           <label>Valor (ej. 20+)</label>
@@ -108,7 +129,11 @@ function StatEditorForm({
           )}
           <button type="submit" className="btn-primario" disabled={isSaving}>
             <span className="material-symbols-outlined">save</span>
-            {initialStat ? "Actualizar Métrica" : "Agregar Métrica"}
+            {isSaving
+              ? "Guardando..."
+              : initialStat
+                ? "Guardar Cambios"
+                : "Agregar Métrica"}
           </button>
         </div>
       </div>
@@ -123,20 +148,58 @@ export function AdminStatsManager({
   onDeleteStat,
 }: AdminStatsManagerProps) {
   const [editingStat, setEditingStat] = useState<ExperienceStat | undefined>();
+  const [statusMessage, setStatusMessage] = useState<string | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const topAnchorRef = useRef<HTMLDivElement>(null);
 
   // Regla `rerender-no-useeffect-state-reset`: remontar formulario usando `key`
   const formKey = editingStat ? `edit-stat-${editingStat.id}` : "new-stat";
 
+  const handleSelectEdit = (stat: ExperienceStat) => {
+    setStatusMessage(undefined);
+    setErrorMessage(undefined);
+    setEditingStat(stat);
+    topAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <div className="admin-seccion-stack">
+    <div className="admin-seccion-stack" ref={topAnchorRef}>
+      {statusMessage && (
+        <div className="alerta-exito-form" role="status">
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>{statusMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="alerta-error-form" role="alert">
+          {errorMessage}
+        </div>
+      )}
+
       <StatEditorForm
         key={formKey}
         initialStat={editingStat}
         defaultOrder={stats.length + 1}
         isSaving={isSaving}
-        onSubmit={(payload) => {
-          onSaveStat(payload);
-          setEditingStat(undefined);
+        onSubmit={async (payload) => {
+          setStatusMessage(undefined);
+          setErrorMessage(undefined);
+          try {
+            await onSaveStat(payload);
+            setEditingStat(undefined);
+            setStatusMessage(
+              payload.id
+                ? "Métrica actualizada correctamente."
+                : "Nueva métrica creada correctamente.",
+            );
+          } catch (err) {
+            setErrorMessage(
+              err instanceof Error
+                ? err.message
+                : "No se pudo guardar la métrica.",
+            );
+          }
         }}
         onCancelEdit={() => setEditingStat(undefined)}
       />
@@ -159,8 +222,8 @@ export function AdminStatsManager({
               <div className="admin-botones-grupo">
                 <button
                   type="button"
-                  className="btn-secundario btn-sm"
-                  onClick={() => setEditingStat(item)}
+                  className="btn-primario btn-sm"
+                  onClick={() => handleSelectEdit(item)}
                 >
                   <span className="material-symbols-outlined">edit</span>
                   Editar
@@ -168,7 +231,15 @@ export function AdminStatsManager({
                 <button
                   type="button"
                   className="btn-secundario btn-sm btn-peligro"
-                  onClick={() => onDeleteStat(item.id)}
+                  onClick={() => {
+                    void onDeleteStat(item.id).catch((err: unknown) => {
+                      setErrorMessage(
+                        err instanceof Error
+                          ? err.message
+                          : "No se pudo eliminar la métrica.",
+                      );
+                    });
+                  }}
                 >
                   <span className="material-symbols-outlined">delete</span>
                 </button>
@@ -180,4 +251,3 @@ export function AdminStatsManager({
     </div>
   );
 }
-

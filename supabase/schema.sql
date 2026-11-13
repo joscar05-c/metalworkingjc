@@ -270,3 +270,17 @@ select * from (values
 ) as seed(title, short_description, technical_details, icon_main, icon_background, display_order, is_active)
 where not exists (select 1 from public.services);
 
+
+
+insert into public.gallery_items (title, badge_text, image_url, grid_span, display_order, is_active)
+select * from (values
+  ('Ensamblaje Técnico', 'Ensamblaje Técnico', '/images/galeria1.jpg', 'destacado-grande', 1, true),
+  ('Pieza de precisión', null, '/images/galeria2.jpg', 'normal', 2, true),
+  ('Herramientas', null, '/images/galeria3.jpg', 'normal', 3, true),
+  ('Acabado Espejo', 'Acabado Espejo', '/images/galeria4.jpg', 'destacado-ancho', 4, true)
+) as seed(title, badge_text, image_url, grid_span, display_order, is_active)
+where not exists (select 1 from public.gallery_items);
+
+update public.site_settings
+set hero_image_url = '/images/HERO2.jpg'
+where id = 1 and (hero_image_url is null or hero_image_url like '/src/assets/%');

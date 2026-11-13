@@ -23,9 +23,9 @@ type AdminTab = "quotes" | "settings" | "services" | "gallery" | "stats";
 
 export default function AdminDashboardPage() {
   const auth = useAdminAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>("quotes");
+  const [activeTab, setActiveTab] = useState<AdminTab>("settings");
 
-  const { data: bundle } = useAdminBundle();
+  const { data: bundle, isLoading: isBundleLoading } = useAdminBundle();
   const { data: quotes = [] } = useAdminQuotesQuery();
   const mutations = useAdminCmsMutations();
 
@@ -48,6 +48,8 @@ export default function AdminDashboardPage() {
   const gallery = bundle?.gallery ?? DEFAULT_GALLERY_ITEMS;
   const pendingCount = quotes.filter((q) => q.status === "pendiente").length;
 
+  const settingsVersionKey = `${settings.id}-${settings.phoneDisplay}-${settings.heroTitleHighlight}-${settings.heroImageUrl ?? ""}`;
+
   return (
     <div className="admin-shell">
       <header className="barra-navegacion">
@@ -64,7 +66,7 @@ export default function AdminDashboardPage() {
               <span className="marca">CMS Metal Working JC</span>
               <span className="submarca">
                 {auth.mode === "supabase"
-                  ? "Conectado a Supabase Cloud"
+                  ? `Supabase Cloud (${auth.userEmail ?? "Admin"})`
                   : "Modo Local Persistente"}
               </span>
             </div>
@@ -89,22 +91,6 @@ export default function AdminDashboardPage() {
 
       <div className="contenedor admin-layout">
         <aside className="admin-sidebar">
-          <button
-            type="button"
-            className={
-              activeTab === "quotes"
-                ? "admin-tab-btn activo"
-                : "admin-tab-btn"
-            }
-            onClick={() => setActiveTab("quotes")}
-          >
-            <span className="material-symbols-outlined">inbox</span>
-            <span>Cotizaciones</span>
-            {pendingCount > 0 && (
-              <span className="admin-contador-badge">{pendingCount}</span>
-            )}
-          </button>
-
           <button
             type="button"
             className={
@@ -156,63 +142,100 @@ export default function AdminDashboardPage() {
             <span className="material-symbols-outlined">monitoring</span>
             <span>Experiencia ({stats.length})</span>
           </button>
+
+          <button
+            type="button"
+            className={
+              activeTab === "quotes"
+                ? "admin-tab-btn activo"
+                : "admin-tab-btn"
+            }
+            onClick={() => setActiveTab("quotes")}
+          >
+            <span className="material-symbols-outlined">inbox</span>
+            <span>Cotizaciones</span>
+            {pendingCount > 0 && (
+              <span className="admin-contador-badge">{pendingCount}</span>
+            )}
+          </button>
         </aside>
 
         <section className="admin-contenido-principal">
-          {activeTab === "quotes" && (
-            <AdminQuotesInbox
-              quotes={quotes}
-              onUpdateStatus={(id, status, adminNotes) =>
-                mutations.updateQuoteMutation.mutate({ id, status, adminNotes })
-              }
-              onDeleteQuote={(id) => mutations.removeQuoteMutation.mutate(id)}
-            />
-          )}
+          {isBundleLoading ? (
+            <div className="admin-card">
+              <p>Cargando contenido actual desde Supabase...</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === "settings" && (
+                <AdminSettingsEditor
+                  key={settingsVersionKey}
+                  initialSettings={settings}
+                  isSaving={mutations.settingsMutation.isPending}
+                  onSave={(nextSettings) =>
+                    mutations.settingsMutation.mutateAsync(nextSettings)
+                  }
+                />
+              )}
 
-          {activeTab === "settings" && (
-            <AdminSettingsEditor
-              key={`settings-${settings.id}`}
-              initialSettings={settings}
-              isSaving={mutations.settingsMutation.isPending}
-              onSave={(nextSettings) =>
-                mutations.settingsMutation.mutate(nextSettings)
-              }
-            />
-          )}
+              {activeTab === "services" && (
+                <AdminServicesManager
+                  services={services}
+                  isSaving={mutations.saveServiceMutation.isPending}
+                  onSaveService={(service) =>
+                    mutations.saveServiceMutation.mutateAsync(service)
+                  }
+                  onDeleteService={(id) =>
+                    mutations.removeServiceMutation.mutateAsync(id)
+                  }
+                />
+              )}
 
-          {activeTab === "services" && (
-            <AdminServicesManager
-              services={services}
-              isSaving={mutations.saveServiceMutation.isPending}
-              onSaveService={(service) =>
-                mutations.saveServiceMutation.mutate(service)
-              }
-              onDeleteService={(id) =>
-                mutations.removeServiceMutation.mutate(id)
-              }
-            />
-          )}
+              {activeTab === "gallery" && (
+                <AdminGalleryManager
+                  items={gallery}
+                  isSaving={mutations.saveGalleryMutation.isPending}
+                  onSaveItem={(item) =>
+                    mutations.saveGalleryMutation.mutateAsync(item)
+                  }
+                  onDeleteItem={(id) =>
+                    mutations.removeGalleryMutation.mutateAsync(id)
+                  }
+                />
+              )}
 
-          {activeTab === "gallery" && (
-            <AdminGalleryManager
-              items={gallery}
-              isSaving={mutations.saveGalleryMutation.isPending}
-              onSaveItem={(item) => mutations.saveGalleryMutation.mutate(item)}
-              onDeleteItem={(id) => mutations.removeGalleryMutation.mutate(id)}
-            />
-          )}
+              {activeTab === "stats" && (
+                <AdminStatsManager
+                  stats={stats}
+                  isSaving={mutations.saveStatMutation.isPending}
+                  onSaveStat={(stat) =>
+                    mutations.saveStatMutation.mutateAsync(stat)
+                  }
+                  onDeleteStat={(id) =>
+                    mutations.removeStatMutation.mutateAsync(id)
+                  }
+                />
+              )}
 
-          {activeTab === "stats" && (
-            <AdminStatsManager
-              stats={stats}
-              isSaving={mutations.saveStatMutation.isPending}
-              onSaveStat={(stat) => mutations.saveStatMutation.mutate(stat)}
-              onDeleteStat={(id) => mutations.removeStatMutation.mutate(id)}
-            />
+              {activeTab === "quotes" && (
+                <AdminQuotesInbox
+                  quotes={quotes}
+                  onUpdateStatus={(id, status, adminNotes) =>
+                    mutations.updateQuoteMutation.mutate({
+                      id,
+                      status,
+                      adminNotes,
+                    })
+                  }
+                  onDeleteQuote={(id) =>
+                    mutations.removeQuoteMutation.mutate(id)
+                  }
+                />
+              )}
+            </>
           )}
         </section>
       </div>
     </div>
   );
 }
-

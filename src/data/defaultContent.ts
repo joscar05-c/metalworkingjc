@@ -1,8 +1,3 @@
-import heroImg from "../assets/HERO2.jpg";
-import imgGaleria1 from "../assets/galeria1.jpg";
-import imgGaleria2 from "../assets/galeria2.jpg";
-import imgGaleria3 from "../assets/galeria3.jpg";
-import imgGaleria4 from "../assets/galeria4.jpg";
 import type {
   ExperienceStat,
   GalleryItem,
@@ -21,7 +16,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroTitleEnd: "en Cada Pieza",
   heroDescription:
     "Fabricación industrial de piezas personalizadas, reparación de componentes y mecanizado CNC con los más altos estándares de tolerancia.",
-  heroImageUrl: heroImg,
+  heroImageUrl: "/images/HERO2.jpg",
   toleranceValue: "0.005",
   toleranceUnit: "mm",
   toleranceLabel: "Tolerancia Máxima",
@@ -116,7 +111,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     id: 1,
     title: "Ensamblaje Técnico",
     badgeText: "Ensamblaje Técnico",
-    imageUrl: imgGaleria1,
+    imageUrl: "/images/galeria1.jpg",
     gridSpan: "destacado-grande",
     displayOrder: 1,
     isActive: true,
@@ -124,7 +119,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 2,
     title: "Pieza de precisión",
-    imageUrl: imgGaleria2,
+    imageUrl: "/images/galeria2.jpg",
     gridSpan: "normal",
     displayOrder: 2,
     isActive: true,
@@ -132,7 +127,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
   {
     id: 3,
     title: "Herramientas",
-    imageUrl: imgGaleria3,
+    imageUrl: "/images/galeria3.jpg",
     gridSpan: "normal",
     displayOrder: 3,
     isActive: true,
@@ -141,7 +136,7 @@ export const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
     id: 4,
     title: "Acabado Espejo",
     badgeText: "Acabado Espejo",
-    imageUrl: imgGaleria4,
+    imageUrl: "/images/galeria4.jpg",
     gridSpan: "destacado-ancho",
     displayOrder: 4,
     isActive: true,
@@ -162,4 +157,3 @@ export const DEFAULT_QUOTE_REQUESTS: QuoteRequest[] = [
     createdAt: new Date().toISOString(),
   },
 ];
-

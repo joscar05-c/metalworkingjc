@@ -18,6 +18,7 @@ import {
   mapQuoteRequestRow,
   mapServiceRow,
   mapSiteSettingsRow,
+  normalizePublicAssetUrl,
 } from "../schemas/cms.schema";
 import type {
   CreateQuoteInput,
@@ -124,11 +125,17 @@ const localQuoteSchema = z.object({
 });
 
 export function getLocalSettings(): SiteSettings {
-  return readLocalJson(
+  const settings = readLocalJson(
     STORAGE_KEYS.settings,
     localSettingsSchema,
     DEFAULT_SITE_SETTINGS,
   );
+  return {
+    ...settings,
+    heroImageUrl:
+      normalizePublicAssetUrl(settings.heroImageUrl) ??
+      DEFAULT_SITE_SETTINGS.heroImageUrl,
+  };
 }
 
 export function getLocalStats(): ExperienceStat[] {
@@ -155,7 +162,12 @@ export function getLocalGallery(): GalleryItem[] {
     z.array(localGallerySchema),
     DEFAULT_GALLERY_ITEMS,
   );
-  return list.toSorted((a, b) => a.displayOrder - b.displayOrder);
+  return list
+    .map((item) => ({
+      ...item,
+      imageUrl: normalizePublicAssetUrl(item.imageUrl) ?? "/images/galeria1.jpg",
+    }))
+    .toSorted((a, b) => a.displayOrder - b.displayOrder);
 }
 
 export function getLocalQuotes(): QuoteRequest[] {
@@ -165,6 +177,38 @@ export function getLocalQuotes(): QuoteRequest[] {
     DEFAULT_QUOTE_REQUESTS,
   );
   return list.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function seedGalleryIfEmpty(): Promise<GalleryItem[]> {
+  if (!supabaseClient) return DEFAULT_GALLERY_ITEMS;
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    return DEFAULT_GALLERY_ITEMS;
+  }
+
+  const seedPayload = DEFAULT_GALLERY_ITEMS.map((item) => ({
+    title: item.title,
+    badge_text: item.badgeText ?? null,
+    image_url: normalizePublicAssetUrl(item.imageUrl) ?? "/images/galeria1.jpg",
+    grid_span: item.gridSpan,
+    display_order: item.displayOrder,
+    is_active: item.isActive,
+  }));
+
+  const { data } = await supabaseClient
+    .from("gallery_items")
+    .insert(seedPayload)
+    .select("*");
+
+  const parsed = z.array(dbGalleryItemRowSchema).safeParse(data);
+  if (parsed.success && parsed.data.length > 0) {
+    return parsed.data
+      .map(mapGalleryItemRow)
+      .toSorted((a, b) => a.displayOrder - b.displayOrder);
+  }
+
+  return DEFAULT_GALLERY_ITEMS;
 }
 
 /**
@@ -203,12 +247,14 @@ export async function fetchLandingBundle(
   ]);
 
   const parsedSettings = dbSiteSettingsRowSchema.safeParse(settingsRes.data);
-  const settings: SiteSettings = parsedSettings.success
+  const mappedSettings = parsedSettings.success
+    ? mapSiteSettingsRow(parsedSettings.data)
+    : undefined;
+  const settings: SiteSettings = mappedSettings
     ? {
-        ...mapSiteSettingsRow(parsedSettings.data),
+        ...mappedSettings,
         heroImageUrl:
-          mapSiteSettingsRow(parsedSettings.data).heroImageUrl ??
-          DEFAULT_SITE_SETTINGS.heroImageUrl,
+          mappedSettings.heroImageUrl ?? DEFAULT_SITE_SETTINGS.heroImageUrl,
       }
     : getLocalSettings();
 
@@ -218,7 +264,7 @@ export async function fetchLandingBundle(
       ? parsedStats.data
           .map(mapExperienceStatRow)
           .toSorted((a, b) => a.displayOrder - b.displayOrder)
-      : getLocalStats();
+      : DEFAULT_EXPERIENCE_STATS;
 
   const parsedServices = z.array(dbServiceRowSchema).safeParse(servicesRes.data);
   const allServices =
@@ -226,7 +272,7 @@ export async function fetchLandingBundle(
       ? parsedServices.data
           .map(mapServiceRow)
           .toSorted((a, b) => a.displayOrder - b.displayOrder)
-      : getLocalServices();
+      : DEFAULT_SERVICES;
 
   const parsedGallery = z
     .array(dbGalleryItemRowSchema)
@@ -236,7 +282,9 @@ export async function fetchLandingBundle(
       ? parsedGallery.data
           .map(mapGalleryItemRow)
           .toSorted((a, b) => a.displayOrder - b.displayOrder)
-      : getLocalGallery();
+      : includeInactive
+        ? await seedGalleryIfEmpty()
+        : DEFAULT_GALLERY_ITEMS;
 
   return {
     settings,
@@ -254,46 +302,58 @@ export async function fetchLandingBundle(
 export async function saveSiteSettings(
   nextSettings: SiteSettings,
 ): Promise<SiteSettings> {
-  writeLocalJson(STORAGE_KEYS.settings, nextSettings);
+  const normalizedHeroUrl = normalizePublicAssetUrl(nextSettings.heroImageUrl);
+  const normalizedSettings: SiteSettings = {
+    ...nextSettings,
+    heroImageUrl: normalizedHeroUrl,
+  };
+
+  writeLocalJson(STORAGE_KEYS.settings, normalizedSettings);
 
   if (!supabaseClient) {
-    return nextSettings;
+    return normalizedSettings;
   }
 
   const { data, error } = await supabaseClient
     .from("site_settings")
     .upsert({
       id: 1,
-      brand_name: nextSettings.brandName,
-      brand_subname: nextSettings.brandSubname,
-      hero_badge: nextSettings.heroBadge,
-      hero_title_start: nextSettings.heroTitleStart,
-      hero_title_highlight: nextSettings.heroTitleHighlight,
-      hero_title_end: nextSettings.heroTitleEnd,
-      hero_description: nextSettings.heroDescription,
-      hero_image_url: nextSettings.heroImageUrl ?? null,
-      tolerance_value: nextSettings.toleranceValue,
-      tolerance_unit: nextSettings.toleranceUnit,
-      tolerance_label: nextSettings.toleranceLabel,
-      contact_heading: nextSettings.contactHeading,
-      contact_description: nextSettings.contactDescription,
-      address_line1: nextSettings.addressLine1,
-      address_line2: nextSettings.addressLine2,
-      phone_display: nextSettings.phoneDisplay,
-      whatsapp_number: nextSettings.whatsappNumber,
-      email_technical: nextSettings.emailTechnical,
-      copyright_text: nextSettings.copyrightText,
+      brand_name: normalizedSettings.brandName,
+      brand_subname: normalizedSettings.brandSubname,
+      hero_badge: normalizedSettings.heroBadge,
+      hero_title_start: normalizedSettings.heroTitleStart,
+      hero_title_highlight: normalizedSettings.heroTitleHighlight,
+      hero_title_end: normalizedSettings.heroTitleEnd,
+      hero_description: normalizedSettings.heroDescription,
+      hero_image_url: normalizedHeroUrl ?? "/images/HERO2.jpg",
+      tolerance_value: normalizedSettings.toleranceValue,
+      tolerance_unit: normalizedSettings.toleranceUnit,
+      tolerance_label: normalizedSettings.toleranceLabel,
+      contact_heading: normalizedSettings.contactHeading,
+      contact_description: normalizedSettings.contactDescription,
+      address_line1: normalizedSettings.addressLine1,
+      address_line2: normalizedSettings.addressLine2,
+      phone_display: normalizedSettings.phoneDisplay,
+      whatsapp_number: normalizedSettings.whatsappNumber,
+      email_technical: normalizedSettings.emailTechnical,
+      copyright_text: normalizedSettings.copyrightText,
       updated_at: new Date().toISOString(),
     })
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
+  if (!data) {
+    throw new Error(
+      "No se pudo guardar en Supabase. Verifica que hayas iniciado sesión con tu usuario de Supabase Auth.",
+    );
+  }
+
   const parsed = dbSiteSettingsRowSchema.safeParse(data);
-  return parsed.success ? mapSiteSettingsRow(parsed.data) : nextSettings;
+  return parsed.success ? mapSiteSettingsRow(parsed.data) : normalizedSettings;
 }
 
 export async function upsertExperienceStat(
@@ -302,7 +362,7 @@ export async function upsertExperienceStat(
   const current = getLocalStats();
   const resolvedId =
     stat.id ??
-    (current.reduce((max, item) => Math.max(max, item.id), 0) + 1);
+    current.reduce((max, item) => Math.max(max, item.id), 0) + 1;
   const updatedItem: ExperienceStat = {
     id: resolvedId,
     statValue: stat.statValue,
@@ -328,23 +388,31 @@ export async function upsertExperienceStat(
     is_active: stat.isActive,
   };
 
-  const query = stat.id
-    ? supabaseClient
-        .from("experience_stats")
-        .update(payload)
-        .eq("id", stat.id)
-        .select("*")
-        .single()
-    : supabaseClient
-        .from("experience_stats")
-        .insert(payload)
-        .select("*")
-        .single();
+  if (stat.id) {
+    const { data: updatedData, error: updateError } = await supabaseClient
+      .from("experience_stats")
+      .update(payload)
+      .eq("id", stat.id)
+      .select("*")
+      .maybeSingle();
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+    if (updateError) throw new Error(updateError.message);
 
-  const parsed = dbExperienceStatRowSchema.safeParse(data);
+    if (updatedData) {
+      const parsed = dbExperienceStatRowSchema.safeParse(updatedData);
+      return parsed.success ? mapExperienceStatRow(parsed.data) : updatedItem;
+    }
+  }
+
+  const { data: insertedData, error: insertError } = await supabaseClient
+    .from("experience_stats")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
+
+  const parsed = dbExperienceStatRowSchema.safeParse(insertedData);
   return parsed.success ? mapExperienceStatRow(parsed.data) : updatedItem;
 }
 
@@ -366,7 +434,7 @@ export async function upsertMachiningService(
   const current = getLocalServices();
   const resolvedId =
     service.id ??
-    (current.reduce((max, item) => Math.max(max, item.id), 0) + 1);
+    current.reduce((max, item) => Math.max(max, item.id), 0) + 1;
   const updatedItem: MachiningService = {
     id: resolvedId,
     title: service.title,
@@ -398,19 +466,31 @@ export async function upsertMachiningService(
     is_active: service.isActive,
   };
 
-  const query = service.id
-    ? supabaseClient
-        .from("services")
-        .update(payload)
-        .eq("id", service.id)
-        .select("*")
-        .single()
-    : supabaseClient.from("services").insert(payload).select("*").single();
+  if (service.id) {
+    const { data: updatedData, error: updateError } = await supabaseClient
+      .from("services")
+      .update(payload)
+      .eq("id", service.id)
+      .select("*")
+      .maybeSingle();
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+    if (updateError) throw new Error(updateError.message);
 
-  const parsed = dbServiceRowSchema.safeParse(data);
+    if (updatedData) {
+      const parsed = dbServiceRowSchema.safeParse(updatedData);
+      return parsed.success ? mapServiceRow(parsed.data) : updatedItem;
+    }
+  }
+
+  const { data: insertedData, error: insertError } = await supabaseClient
+    .from("services")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
+
+  const parsed = dbServiceRowSchema.safeParse(insertedData);
   return parsed.success ? mapServiceRow(parsed.data) : updatedItem;
 }
 
@@ -426,15 +506,17 @@ export async function deleteMachiningService(id: number): Promise<void> {
 export async function upsertGalleryItem(
   item: Omit<GalleryItem, "id"> & { id?: number },
 ): Promise<GalleryItem> {
+  const normalizedUrl =
+    normalizePublicAssetUrl(item.imageUrl) ?? item.imageUrl;
   const current = getLocalGallery();
   const resolvedId =
     item.id ??
-    (current.reduce((max, entry) => Math.max(max, entry.id), 0) + 1);
+    current.reduce((max, entry) => Math.max(max, entry.id), 0) + 1;
   const updatedItem: GalleryItem = {
     id: resolvedId,
     title: item.title,
     badgeText: item.badgeText,
-    imageUrl: item.imageUrl,
+    imageUrl: normalizedUrl,
     gridSpan: item.gridSpan,
     displayOrder: item.displayOrder,
     isActive: item.isActive,
@@ -453,29 +535,37 @@ export async function upsertGalleryItem(
   const payload = {
     title: item.title,
     badge_text: item.badgeText ?? null,
-    image_url: item.imageUrl,
+    image_url: normalizedUrl,
     grid_span: item.gridSpan,
     display_order: item.displayOrder,
     is_active: item.isActive,
   };
 
-  const query = item.id
-    ? supabaseClient
-        .from("gallery_items")
-        .update(payload)
-        .eq("id", item.id)
-        .select("*")
-        .single()
-    : supabaseClient
-        .from("gallery_items")
-        .insert(payload)
-        .select("*")
-        .single();
+  if (item.id) {
+    const { data: updatedData, error: updateError } = await supabaseClient
+      .from("gallery_items")
+      .update(payload)
+      .eq("id", item.id)
+      .select("*")
+      .maybeSingle();
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+    if (updateError) throw new Error(updateError.message);
 
-  const parsed = dbGalleryItemRowSchema.safeParse(data);
+    if (updatedData) {
+      const parsed = dbGalleryItemRowSchema.safeParse(updatedData);
+      return parsed.success ? mapGalleryItemRow(parsed.data) : updatedItem;
+    }
+  }
+
+  const { data: insertedData, error: insertError } = await supabaseClient
+    .from("gallery_items")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
+
+  const parsed = dbGalleryItemRowSchema.safeParse(insertedData);
   return parsed.success ? mapGalleryItemRow(parsed.data) : updatedItem;
 }
 
@@ -622,4 +712,3 @@ export async function uploadMediaFile(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-

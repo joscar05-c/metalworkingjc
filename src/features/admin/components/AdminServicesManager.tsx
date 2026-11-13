@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { MachiningService } from "../../../types/domain";
 
 const SUGGESTED_ICONS = [
@@ -13,7 +13,7 @@ const SUGGESTED_ICONS = [
   "grid_on",
   "blur_on",
   "bolt",
-  " straighten",
+  "straighten",
 ] as const;
 
 export interface AdminServicesManagerProps {
@@ -21,15 +21,17 @@ export interface AdminServicesManagerProps {
   isSaving: boolean;
   onSaveService: (
     service: Omit<MachiningService, "id"> & { id?: number },
-  ) => void;
-  onDeleteService: (id: number) => void;
+  ) => Promise<unknown>;
+  onDeleteService: (id: number) => Promise<unknown>;
 }
 
 interface ServiceEditorFormProps {
   initialService?: MachiningService;
   defaultOrder: number;
   isSaving: boolean;
-  onSubmit: (service: Omit<MachiningService, "id"> & { id?: number }) => void;
+  onSubmit: (
+    service: Omit<MachiningService, "id"> & { id?: number },
+  ) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -58,11 +60,11 @@ function ServiceEditorForm({
   );
   const [isActive, setIsActive] = useState(initialService?.isActive ?? true);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!title.trim() || !shortDescription.trim()) return;
 
-    onSubmit({
+    await onSubmit({
       id: initialService?.id,
       title: title.trim(),
       shortDescription: shortDescription.trim(),
@@ -82,12 +84,30 @@ function ServiceEditorForm({
   };
 
   return (
-    <form className="admin-card formulario" onSubmit={handleSubmit}>
-      <h4>
-        {initialService
-          ? `Editando Servicio: ${initialService.title}`
-          : "Agregar Nuevo Servicio de Mecanizado"}
-      </h4>
+    <form
+      className={
+        initialService
+          ? "admin-card admin-card-editando formulario"
+          : "admin-card formulario"
+      }
+      onSubmit={handleSubmit}
+    >
+      <div className="admin-card-header" style={{ marginBottom: "0.5rem" }}>
+        <h4>
+          {initialService
+            ? `✏️ Editando Servicio: ${initialService.title}`
+            : "Agregar Nuevo Servicio de Mecanizado"}
+        </h4>
+        {initialService && (
+          <button
+            type="button"
+            className="btn-secundario btn-sm"
+            onClick={onCancel}
+          >
+            Cancelar Edición
+          </button>
+        )}
+      </div>
 
       <div className="fila-form">
         <div className="grupo-form">
@@ -150,7 +170,9 @@ function ServiceEditorForm({
       </div>
 
       <div className="grupo-form">
-        <label>Especificaciones / Ficha Técnica (Visible al abrir el modal)</label>
+        <label>
+          Especificaciones / Ficha Técnica (Visible al abrir el modal)
+        </label>
         <textarea
           rows={3}
           value={technicalDetails}
@@ -177,7 +199,11 @@ function ServiceEditorForm({
           )}
           <button type="submit" className="btn-primario" disabled={isSaving}>
             <span className="material-symbols-outlined">save</span>
-            {initialService ? "Guardar Cambios" : "Crear Servicio"}
+            {isSaving
+              ? "Guardando..."
+              : initialService
+                ? "Guardar Cambios del Servicio"
+                : "Crear Servicio"}
           </button>
         </div>
       </div>
@@ -194,21 +220,59 @@ export function AdminServicesManager({
   const [editingService, setEditingService] = useState<
     MachiningService | undefined
   >();
+  const [statusMessage, setStatusMessage] = useState<string | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const topAnchorRef = useRef<HTMLDivElement>(null);
 
   const formKey = editingService
     ? `edit-service-${editingService.id}`
     : "new-service";
 
+  const handleSelectEdit = (service: MachiningService) => {
+    setStatusMessage(undefined);
+    setErrorMessage(undefined);
+    setEditingService(service);
+    topAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <div className="admin-seccion-stack">
+    <div className="admin-seccion-stack" ref={topAnchorRef}>
+      {statusMessage && (
+        <div className="alerta-exito-form" role="status">
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>{statusMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="alerta-error-form" role="alert">
+          {errorMessage}
+        </div>
+      )}
+
       <ServiceEditorForm
         key={formKey}
         initialService={editingService}
         defaultOrder={services.length + 1}
         isSaving={isSaving}
-        onSubmit={(payload) => {
-          onSaveService(payload);
-          setEditingService(undefined);
+        onSubmit={async (payload) => {
+          setStatusMessage(undefined);
+          setErrorMessage(undefined);
+          try {
+            await onSaveService(payload);
+            setEditingService(undefined);
+            setStatusMessage(
+              payload.id
+                ? "Servicio actualizado correctamente."
+                : "Nuevo servicio creado correctamente.",
+            );
+          } catch (err) {
+            setErrorMessage(
+              err instanceof Error
+                ? err.message
+                : "No se pudo guardar el servicio.",
+            );
+          }
         }}
         onCancel={() => setEditingService(undefined)}
       />
@@ -236,8 +300,8 @@ export function AdminServicesManager({
               <div className="admin-botones-grupo">
                 <button
                   type="button"
-                  className="btn-secundario btn-sm"
-                  onClick={() => setEditingService(service)}
+                  className="btn-primario btn-sm"
+                  onClick={() => handleSelectEdit(service)}
                 >
                   <span className="material-symbols-outlined">edit</span>
                   Editar
@@ -245,7 +309,15 @@ export function AdminServicesManager({
                 <button
                   type="button"
                   className="btn-secundario btn-sm btn-peligro"
-                  onClick={() => onDeleteService(service.id)}
+                  onClick={() => {
+                    void onDeleteService(service.id).catch((err: unknown) => {
+                      setErrorMessage(
+                        err instanceof Error
+                          ? err.message
+                          : "No se pudo eliminar.",
+                      );
+                    });
+                  }}
                 >
                   <span className="material-symbols-outlined">delete</span>
                 </button>
@@ -257,4 +329,3 @@ export function AdminServicesManager({
     </div>
   );
 }
-

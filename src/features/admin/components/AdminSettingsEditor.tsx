@@ -5,7 +5,7 @@ import type { SiteSettings } from "../../../types/domain";
 export interface AdminSettingsEditorProps {
   initialSettings: SiteSettings;
   isSaving: boolean;
-  onSave: (settings: SiteSettings) => void;
+  onSave: (settings: SiteSettings) => Promise<unknown>;
 }
 
 export function AdminSettingsEditor({
@@ -16,12 +16,14 @@ export function AdminSettingsEditor({
   const [formState, setFormState] = useState<SiteSettings>(initialSettings);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [errorNotice, setErrorNotice] = useState<string | undefined>();
 
   const updateField = <K extends keyof SiteSettings>(
     field: K,
     value: SiteSettings[K],
   ) => {
     setSavedNotice(false);
+    setErrorNotice(undefined);
     setFormState((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -29,18 +31,35 @@ export function AdminSettingsEditor({
     const file = event.target.files?.[0];
     if (!file) return;
     setUploadingImage(true);
+    setErrorNotice(undefined);
     try {
       const uploadedUrl = await uploadMediaFile(file);
       updateField("heroImageUrl", uploadedUrl);
+    } catch (err) {
+      setErrorNotice(
+        err instanceof Error
+          ? err.message
+          : "No se pudo subir la imagen seleccionada.",
+      );
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(formState);
-    setSavedNotice(true);
+    setSavedNotice(false);
+    setErrorNotice(undefined);
+    try {
+      await onSave(formState);
+      setSavedNotice(true);
+    } catch (err) {
+      setErrorNotice(
+        err instanceof Error
+          ? err.message
+          : "Error al guardar la configuración.",
+      );
+    }
   };
 
   return (
@@ -54,9 +73,17 @@ export function AdminSettingsEditor({
           </p>
         </div>
         {savedNotice && (
-          <span className="badge-estado badge-cotizado">Cambios guardados</span>
+          <span className="badge-estado badge-cotizado">
+            ¡Cambios guardados en Supabase!
+          </span>
         )}
       </div>
+
+      {errorNotice && (
+        <div className="alerta-error-form" role="alert">
+          {errorNotice}
+        </div>
+      )}
 
       <h4 className="admin-subtitulo-bloque">1. Marca y Portada (Hero)</h4>
       <div className="fila-form">
@@ -95,11 +122,11 @@ export function AdminSettingsEditor({
           <div className="input-archivo-fila">
             <input
               type="text"
-              value={formState.heroImageUrl ?? ""}
+              value={formState.heroImageUrl ?? "/images/HERO2.jpg"}
               onChange={(e) =>
                 updateField("heroImageUrl", e.target.value || undefined)
               }
-              placeholder="https://... o sube una imagen"
+              placeholder="/images/HERO2.jpg o https://..."
             />
             <label className="btn-secundario btn-subir-archivo">
               <span className="material-symbols-outlined">upload</span>
@@ -185,7 +212,9 @@ export function AdminSettingsEditor({
         </div>
       </div>
 
-      <h4 className="admin-subtitulo-bloque">2. Información de Contacto y WhatsApp</h4>
+      <h4 className="admin-subtitulo-bloque">
+        2. Información de Contacto y WhatsApp
+      </h4>
       <div className="fila-form">
         <div className="grupo-form">
           <label>Título de Sección Contacto</label>
@@ -269,6 +298,13 @@ export function AdminSettingsEditor({
         />
       </div>
 
+      {savedNotice && (
+        <div className="alerta-exito-form" role="status">
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>Configuración guardada y publicada correctamente.</span>
+        </div>
+      )}
+
       <div className="admin-acciones-derecha">
         <button type="submit" className="btn-primario" disabled={isSaving}>
           <span className="material-symbols-outlined">save</span>
@@ -278,4 +314,3 @@ export function AdminSettingsEditor({
     </form>
   );
 }
-
